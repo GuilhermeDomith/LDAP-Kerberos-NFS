@@ -1,31 +1,45 @@
 # LDAP + Kerberos + NFS
 Trabalho realizado para as disciplinas de Serviços e Segurança do curso de Tecnologia em Sistemas para Internet
 
-## Instalar e configurar Kerberos
+## Introdução
 
-### Cliente 01 (Servidor)
+Primeiro, será utilizado hostnames para referenciar às máquinas servidor e cliente, e não os seus ip's utilizados. Sendo assim, **kerberos_server** e **client_01** seram os nomes utilizados. 
+
+O Arquivo **/etc/hostname** de cada máquina deve ter o nome localhost alterado para o seu nome correspondente e o mais importante, no aqruivo **/etc/hosts** deve ser inserido as linhas que associam o ip de cada máquina ao seu respectivo nome. Como no exemplo usado abaixo:
+
+**Arquivo:** /etc/hosts
+```conf
+...
+192.168.0.28    kerberos_server.jungle.kvm      kerberos_server
+192.168.0.7     client_01.jungle.kvm            client_01
+```
+
+
+## Instalação e Configuração do Kerberos
+
+### **Máquina**: Kerberos_Server
 ---
 
-Para instalar o *Kerberos* digite o seguinte comando:
+Para instalar o *Kerberos* execute o comando:
 ```shell
 # yum install krb5-server
 ```
+O nome de domínio utilizado para o Kerberos será **jungle.kvm**. Por isso, quando fizermos referência a uma máquina utilizaremos, por exemplo: kerberos_server.**jungle.kvm**, client_01.**jungle.kvm**, client_02.**jungle.kvm**, etc.
 
-O arquivo de configurações padrão do *Kerberos* pode ser encontrado em:
+É preciso configurar o nome de domínio do Kerberos em três arquivos, são eles:
 
+- krb5.conf
+- kdc.conf
+- kadm5.acl 
+
+Após instalado o kerberos o nome padrão utilizado por ele é **example.com**, este nome deve ser alterado nos arquivos acima para **jungle.kvm**. Nos locais em que o nome de domínio for em caracteres maiúsculos deve-se manter desta forma. Portanto, onde se encontra **EXAMPLE.COM** altera-se para **JUNGLE.KVM**. 
+
+
+No aquivo **/etc/krb5.conf**, além de precisar alterar o nome de domínio que possui muitas ocorrências, deve ser alterado também o **kdc** e **admin_server** para **kerberos_server.jungle.kvm**, que por padrão se encontram com o valor **kerberos.example.com**. Após as configurações o arquivo se deverá estar da seguinte forma:
+
+
+**Arquivo:** /etc/krb5.conf
 ```shell
-# vim /etc/krb5.conf
-```
-
-Utilizando o arquivo de configuração inicial do *Kerberos*, substitua todas as ocorrências de example.com e EXAMPLE.COM por jungle.kvm e JUNGLE.KVM, respectivamente. O nosso &&&&& será chamado de **jungle.kvm** e o &&&&&2 de **JUNGLE.KVM**. Para o &&&&& será dado o nome **cenvm01**, ele deve ser configurado nas informações do &&&&& *[realms]*.
-
-> Os nomes fornecidos para as configurações acima não necessariamente precisam ser os mesmos escolhidos, mas precisam ser iguais em todas as referências ocorridas no arquivo *krb5.conf* e nos arquivos que serão alterados abaixo.
-
-Com as configurações acima citadas o arquivo *krb5.conf* deverá ter o seguinte resultado:
-
-```conf
-FILE: /etc/krb5.conf
-
 includedir /etc/krb5.conf.d/
 
 [logging]
@@ -45,151 +59,162 @@ includedir /etc/krb5.conf.d/
 
 [realms]
  JUNGLE.KVM = {
-  kdc = cenvm01.jungle.kvm
-  admin_server = cenvm01.jungle.kvm
+  kdc = kerberos_server.jungle.kvm
+  admin_server = kerberos_server.jungle.kvm
  }
 
 [domain_realm]
  .jungle.kvm = JUNGLE.KVM
  jungle.kvm = JUNGLE.KVM
+ ```
+
+
+Nos aquivos **kdc.conf** e **kadm5.acl**, localizados em **/var/kerberos/krb5kdc/**, devem ser alterados apenas o nome de domínio, em ambos os arquivos há apenas uma ocorrência. Por fim, terão o seguinte conteúdo: 
+
+**Arquivo:** /var/kerberos/krb5kdc/kdc.conf
+```conf
+[kdcdefaults]
+ kdc_ports = 88
+ kdc_tcp_ports = 88
+
+[realms]
+ JUNGLE.KVM = {
+  #master_key_type = aes256-cts
+  acl_file = /var/kerberos/krb5kdc/kadm5.acl
+  dict_file = /usr/share/dict/words
+  admin_keytab = /var/kerberos/krb5kdc/kadm5.keytab
+  supported_enctypes = aes256-cts:normal aes128-cts:normal des3-hmac-sha1:normal arcfour-hmac:normal camellia256-cts:normal camellia128-cts:normal des-hmac-sha1:normal des-cbc-md5:normal des-cbc-crc:normal
+ }
 ```
 
-Para fazer com que &&&& é preciso configurar o arquivo *kdc.conf* e o *kadm5.acl*:
-
-```shell
-# vim /var/kerberos/krb5kdc/kdc.conf
-# vim /var/kerberos/krb5kdc/kadm5.acl 
+**Arquivo:** /var/kerberos/krb5kdc/kadm5.acl
+```conf
+*/admin@JUNGLE.KVM      *
 ```
 
-Neles precisamos apenas referênciar o &&&&&2 configurado acima. Caso tenha escolhido outro nome você deve fornecê-lo. Substitua o nome `EXAMPLE.COM`, configurado em ambos os arquivos, para **JUNGLE.KVM**.
-
-Então, é preciso criar o banco de dados a ser usado pelo *Kerberos*. Após criá-lo, com o comando abaixo, será solicitado uma senha para o banco.
+Após as configurações é preciso criar o banco de dados a ser usado pelo Kerberos. Após criá-lo executando o comando abaixo **fornceça uma senha master** para o banco.
 
 ```shell
 # kdb5_util create -s -r JUNGLE.KVM
+---------------------
+Loading random data
+Initializing database '/var/kerberos/krb5kdc/principal' for realm 'JUNGLE.KVM',
+master key name 'K/M@JUNGLE.KVM'
+You will be prompted for the database Master Password.
+It is important that you NOT FORGET this password.
+Enter KDC database master key: 
+Re-enter KDC database master key to verify: 
 ```
 
-Habilite os serviços do *Kerberos* para iniciarem quando o sistema for iniciado:
+Habilite o Kerberos para iniciar quando o sistema for iniciado.
 ```shell
 # systemctl enable kadmin.service
 # systemctl enable krb5kdc.service
 ```
 
-Reinicie a máquina ou inicie os serviços manualmente:
+Reinicie a máquina ou inicie os serviços manualmente.
 ```shell
 # systemctl start kadmin.service
 # systemctl start krb5kdc.service
 ```
 
-Verifique se o *Kerberos* é listado como um serviço disponível no firewall **//Verificar//**
+É preciso adicionar o kerberos ao firewall do sistema. Você pode ver se ele está disponível para ser adicionado com o comando abaixo. É um comando opcional, ele apenas listará todos os serviços disponíveis, mas o kerberos deve ser listado para que o próximo comando seja executado com sucesso.
+
 ```shell
 # firewall-cmd --get-services | grep kerberos
 ```
-Adicione o serviço ao firewall e reinicie-o **//Verificar//**. Ambos os comandos abaixo deverão retornar _success_ **//Verificar//**
+**Não será preciso se _systemctl disable firewalld.service_
+foi executado?**
 ```shell
 # firewall-cmd --permanent --add-service kerberos
 # firewall-cmd --reload
 ```
 
-Vamos criar os usuários para acessarem o kerberos. Após digitar o comando abaixo será aberto um prompt. Forneça o comando `addprinc root/admin` para criar o usuário _admin_
+Vamos criar os usuários que serão usados para se autenticarem através do Kerberos. Após executar o comando **kadmin.local** será aberto um prompt, forneça os comandos como é mostrado abaixo para adicionar os usuários. Antes adicioná-los, abaixo é listado qual a necessidade de cada comando. 
 
+> **Comandos do kadmin.local**
+> - addprinc
+>     - -randkey
+> - ktadd
+>     - -k
+> - listprincs
 
+Criando os usuários admin os hosts no Kerberos:
 ```shell
 # kadmin.local 
----
+---------------------
 kadmin.local:  addprinc root/admin
  Enter password for...
 
-kadmin.local:  addprinc -randkey host/cenvm02.jungle.kvm
+kadmin.local:  addprinc -randkey host/client_01.jungle.kvm
  ... (output)
 
-kadmin.local:  addprinc -randkey host/cenvm03.jungle.kvm
- ... (output)
-
-kadmin.local: ktadd -k /tmp/cenvm02.keytab host/cenvm02.jungle.kvm
- ... (output)
-
-kadmin.local: ktadd -k /tmp/cenvm03.keytab host/cenvm03.jungle.kvm
+kadmin.local: ktadd -k /tmp/client_01.keytab host/client_01.jungle.kvm
  ... (output)
 
 kadmin.local: listprincs
- K/M@JUNGLE.KVM
- host/cenvm02.jungle.kvm@JUNGLE.KVM
- host/cenvm03.jungle.kvm@JUNGLE.KVM
- kadmin/admin@JUNGLE.KVM
- kadmin/changepw@JUNGLE.KVM
- kadmin/localhost@JUNGLE.KVM
- kiprop/localhost@JUNGLE.KVM
- krbtgt/JUNGLE.KVM@JUNGLE.KVM
- root/admin@JUNGLE.KVM
+K/M@JUNGLE.KVM
+host/client_01.jungle.kvm@JUNGLE.KVM
+kadmin/admin@JUNGLE.KVM
+kadmin/changepw@JUNGLE.KVM
+kadmin/localhost@JUNGLE.KVM
+kiprop/localhost@JUNGLE.KVM
+krbtgt/JUNGLE.KVM@JUNGLE.KVM
+root/admin@JUNGLE.KVM
 
 kadmin.local: quit
 ```
-> Caso a versão do _Kerberos_ utilizada seja a versão 5 e os usuários e hosts adicionados sejam os mesmos acima, a saída ao digitar o comando `listprincs` deverá ser a mesma da que foi exibida. Caso contrário, a saída pode ser diferente.
 
-> ## Comandos do Kadmin.local
-> addprinc - 
->
-> -randkey - gerar chave aleatória
-> 
-> ktadd -k
-> 
-> listprincs
+Até aqui o Kerberos já está configurado. Agora é preciso configurar o Kerberos nas máquinas clientes. O arquivo **krb5.conf** terá as mesmas configurações nas máquinas clientes, por isso ele pode ser copiado para elas. E os arquivos com extenção ***.keytab**, gerados para cada máquina no comando acima, deverá ser usado pelas máquinas cliente também. 
 
-Enviar os arquivos necessários para &&&&&&
+Executando o comando abaixo os arquivos necessários serão enviados para a máquina **cliente_01**.
 
 ```shell
-# scp /etc/krb5.conf /tmp/cenvm02.keytab cenvm02:/tmp/
+# scp /etc/krb5.conf /tmp/client_01.keytab root@client_01:/tmp/
 ```
 
-### Cliente 02 
+### **Máquina**: client_01
 ---
 
-Instale os pacotes necessários para que o cliente se comunique com o servidor do _kerberos_.
+Instale os pacotes necessários para que o cliente se comunique com o servidor do Kerberos.
+
 ```shell
 # yum install pam_krb5 krb5-workstation
 ```
 
-Copie o arquivo obtido do servidor kerberos e subistitua o arquivo de configurações da maquina local:
+Copie o arquivo **krb5.conf** obtido da máquina **kerberos_server** e subistitua o arquivo já existente:
 
 ```shell
 # cp /tmp/krb5.conf /etc/
 ```
 
-Abra o console do kutil para &&&&&
+Agora é preciso utilizar o console do **ktutil** para adicionar a chave também obtida do **kerberos_server**.
+
 ```shell
 # ktutil
----
-ktutil:  rkt /tmp/cenvm02.keytab 
+--------------
+ktutil:  rkt /tmp/client_01.keytab 
 ktutil:  wkt /etc/krb5.keytab
 ktutil:  list
 slot KVNO Principal
-   1    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
-   2    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
-   3    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
-   4    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
-   5    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
-   6    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
-   7    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
-   8    2       host/cenvm02.jungle.kvm@JUNGLE.KVM
+---- ---- ----------------------------------------
+   1    2     host/client_01.jungle.kvm@JUNGLE.KVM
+   2    2     host/client_01.jungle.kvm@JUNGLE.KVM
+   ... (output)
+
 ktutil:  quit
 ```
 
-> ## Comandos do Kutil
-> rkt
+> **Para Outros Clientes**
 >
-> wkt
->
-> list
+> Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos. Apenas altere para o hostname que será utilizado para cada máquina.
 
-> Faça as mesmas estapas para outros possíveis clientes que utilizaram os serviços configurados.
+## Instalação e configuração do OpenLDAP
 
-## Instalar e configurar OpenLDAP
-
-### Cliente 01 (Servidor)
+### **Máquina**: kerberos_server
 ---
 
-Instalar pacotes necessários
+Instalar pacotes necessários.
 
 ```shell
 # yum install openldap-servers openldap-clients migrationtools
@@ -203,7 +228,7 @@ Alterar dono do diretórios e arquivos
 ```shell
 # chown -R ldap: /var/lib/ldap/
 ```
-Insira uma senha para o servidor ldap. Copie o hash da senha que será exibido no console.
+Insira uma senha para o servidor ldap. Copie o hash da senha que será exibido no console após a senha ser fornecida.
 ```shell
 # slappasswd
 ```
@@ -212,52 +237,50 @@ Insira uma senha para o servidor ldap. Copie o hash da senha que será exibido n
 # cd /etc/openldap/slapd.d/cn\=config
 # vim olcDatabase\=\{0\}config.ldif
 ```
-Insira a variável **olcRootPW** do final do arquivo e como valor coloque o hash da sua senha copiada acima. 
-```conf
-FILE: olcDatabase\=\{0\}config.ldif
+Insira a variável **olcRootPW** no arquivo **olcDatabase={0}config.ldif** e como valor coloque o hash da sua senha que foi gerado acima. Como exemplo abaixo.
 
+**Arquivo:** /etc/openldap/slapd.d/cn=config/olcDatabase={0}config.ldif
+```conf
 ...
 olcRootPW: {SSHA}cMDvUOc6aI0ArtrUokrHtP9IzrU7okr+TjuZ7
 
 ```
 
-Altere as referencias de domínio para o seu nome configurado na instalação do _Kerberos_. 
+No arquivo **olcDatabase={2}hdb.ldif** altere para o nome de domínio configurado no servidor Kerberos. Altere todas as ocorrências de **dc=my-domain** e **dc=com** para **dc=jungle** e **dc=kvm**, respectivamente. Insira também o **olcRootPW** como feito anteriormente. E por último insira os dois atributos **olcAccess** como feito a
 
-```shell
-# vim olcDatabase={2}hdb.ldif
-```
-
-Todas as referências abaixo devem ser trocadas
-
-**my-domain**: jungle  
-**dc=com**: dc=kvm
-
-Utilize o recurso de replace do _vim_ para evitar erros nas alterações. Insira tambpem o **olcRootPW**, como feito anteriormente.
-
+**Arquivo:** /etc/openldap/slapd.d/cn=config/olcDatabase={2}hdb.ldif
 ```conf
-FILE: vim olcDatabase={2}hdb.ldif
-
-...
-olcRootPW: {SSHA}cMDvUOc6aI0ArtrUokrHtP9IzrU7okr+TjuZ7
-
+dn: olcDatabase={2}hdb
+objectClass: olcDatabaseConfig
+objectClass: olcHdbConfig
+olcDatabase: {2}hdb
+olcDbDirectory: /var/lib/ldap
+olcSuffix: dc=jungle,dc=kvm
+olcRootDN: cn=Manager,dc=jungle,dc=kvm
+olcRootPW: {SSHA}58Rggp4f6iyS6Cvn5kGrrBBUKVhjod1A
+olcDbIndex: objectClass eq,pres
+olcDbIndex: ou,cn,mail,surname,givenname eq,pres,sub
+structuralObjectClass: olcHdbConfig
+entryUUID: 50ea6406-920c-1039-95f0-1d53df8faa2e
+creatorsName: cn=config
+createTimestamp: 20191102223154Z
+entryCSN: 20191102223154.230847Z#000000#000#000000
+modifiersName: cn=config
+modifyTimestamp: 20191102223154Z
 olcAccess: {0}to attrs=userPassword by self write by dn.base="cn=Manager,dc=jungle,dc=kvm" write by anonymous auth by * none
-
-olcAccess: {1}to * by dn.base="cn=Manager,dc=jungle,dc=kvm" write by self write 
-by * read
-
+olcAccess: {1}to * by dn.base="cn=Manager,dc=jungle,dc=kvm" write by self write by * read
 ```
 
-Em **monitor.ldif** altere somente as referências **my-domain** e **com**  para os mesmos valores colocados anteriormente.
+No arquivo **olcDatabase={1}monitor.ldif** altere somente **dc=my-domain** e **dc=com** para **dc=jungle** e **dc=kvm**.
 
-```shell
-# vim olcDatabase\=\{1\}monitor.ldif
-```
-
-Após isso, habilite e inicie o serviço do _OpenLDAP_.
+Após configurar os três arquivos acima habilite e inicie o OpenLDAP.
 ```shell
 # systemctl enable slapd
 # systemctl start slapd
 ```
+
+___
+**Ver se vai manter**
 
 Da mesma forma que foi realizado com o *Kerberos*, verifique se o _OpenLDAP_ é listado como um serviço disponível no firewall **//Verificar//**
 ```shell
@@ -268,7 +291,9 @@ Adicione o serviço ao firewall e reinicie-o **//Verificar//**. Ambos os comando
 # firewall-cmd --permanent --add-service ldap
 # firewall-cmd --reload
 ```
-Adicionar os arquivos ao _OpenLDAP_
+___
+
+Adicionar os arquivos ao LDAP.
 ```shell
 # ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/cosine.ldif 
 
@@ -277,7 +302,7 @@ Adicionar os arquivos ao _OpenLDAP_
 # ldapadd -Y EXTERNAL -H ldapi:/// -f /etc/openldap/schema/inetorgperson.ldif 
 ```
 
-Cria a estrutura raiz do diretório ldap.
+Crie o arquivo que será usado pata a estrutura raiz do diretório ldap.
 
 ```shell
 # vim base.ldif
@@ -301,7 +326,7 @@ objectClass: organizationalUnit
 ou: Group
 ```
 
-Insira a estrutura raiz ao ldap e faça uma busca para confirmar a inserção. Caso a busca retorne a estrutura criada o insersão foi realizada com sucesso. 
+Insira a estrutura raiz ao LDAP e faça uma busca para confirmar a inserção. Caso a busca retorne a estrutura criada o insersão foi realizada com sucesso. 
 
 ```shell
 # ldapadd -x -D cn=Manager,dc=jungle,dc=kvm -W -f base.ldif 
@@ -309,113 +334,109 @@ Insira a estrutura raiz ao ldap e faça uma busca para confirmar a inserção. C
 # ldapsearch -x -D cn=Manager,dc=jungle,dc=kvm -W -b dc=jungle,dc=kvm
 ```
 
-Crie os usuários que serão usados para se autenticar no _NFS_. Como o _Kerberos_ se encarregará da autenticação não serão criados senhas para estes usuários.
+Crie os usuários que serão usados para se autenticar no NFS. Como o Kerberos se encarregará da autenticação, não serão criados senhas para estes usuários.
 
 ```shell
-# useradd demouser1
-# useradd demouser2
+# useradd user1
+# useradd user2
 ```
 
-```shell
-# cd /usr/share/migrationtools/
-# vim migrate_common.ph
-```
+No arquivo **migrate_common.ph** altere o valor da variável **DEFAULT_MAIL_DOMAIN** para   **"jungle.kvm"**, **DEFAULT_BASE** para **"dc=jungle,dc=kvm"** e **EXTENDED_SCHEMA** para o valor **1**. Abaixo o resultado das configurações somente nas três variáveis modificadas:
 
-Altere as seguintes configurações
-
+**Arquivo:** /usr/share/migrationtools/migrate_common.ph
 ```conf
-# Default DNS domain
-$DEFAULT_MAIL_DOMAIN = "padl.com";
-
-# Default base 
-$DEFAULT_BASE = "dc=padl,dc=com";
-
-...
-
-# such as person.
-$EXTENDED_SCHEMA = 0;
-```
-VVV
-```conf
-# Default DNS domain
 $DEFAULT_MAIL_DOMAIN = "jungle.kvm";
-
-# Default base 
 $DEFAULT_BASE = "dc=jungle,dc=kvm";
-
 ...
-
-# such as person.
 $EXTENDED_SCHEMA = 1;
 ```
 
-Vamos utilizar o **migrate_passwd** e **migrate_group** para converter as informações dos usuários, criados acima, na estrutura do _LDAP_. Após criadas as estruturas de **users** e **groups** adicione ao _LDAP_.
+Vamos utilizar o **migrate_passwd** e **migrate_group** para converter as informações dos usuários criados acima, e grupos criados automanticamente, na mesma estrutura do LDAP.
 
 ```shell
-# grep demo /etc/passwd > /tmp/users
-# grep demo /etc/group > /tmp/groups
+# egrep  user[0-9] /etc/passwd > /tmp/users
+# egrep  user[0-9] /etc/group > /tmp/groups
 #
-#  ./migrate_passwd.pl /tmp/users /tmp/users.ldif
-#  ./migrate_group.pl /tmp/groups /tmp/groups.ldif
-#
+# /usr/share/migrationtools/migrate_passwd.pl /tmp/users /tmp/users.ldif
+# /usr/share/migrationtools/migrate_group.pl /tmp/groups /tmp/groups.ldif
+
+```
+
+Adicione as estruturas criadas ao LDAP.
+```shell
 # ldapadd -x -D cn=Manager,dc=jungle,dc=kvm -W -f /tmp/groups.ldif 
 # ldapadd -x -D cn=Manager,dc=jungle,dc=kvm -W -f /tmp/users.ldif 
 ```
-
-### Cliente 02 
+### **Máquina**: client_01
 ---
+
+Instalar os pacotes necessários.
 
 ```shell
 # yum install nss-pam-ldapd
 ```
-Vamos configurar o _PAM_ para utilizar os serviços de _LDAP_ e _Kerberos_ para autenticação nos clientes. Iremos configurar o endereço do Servidor _LDAP_ e o DN base do mesmo. E do Kerberos iremos configurar o Reino, o KDC e o Servidor de Admin.
+Vamos configurar o PAM para utilizar os serviços de LDAP e Kerberos para autenticação nos clientes. Iremos configurar o endereço e o DN do Servidor LDAP. E do Kerberos iremos configurar o Reino, o KDC e o Servidor de Admin.
 
+Após executar o comando abaixo será aberto uma interface para alterar as configurações.
 ```shell
 # authconfig-tui
 ```
 
-Marque ou altere as seguintes configurações na tela que será aberta. 
+Marque ou altere as seguintes configurações na primeira tela que será aberta. 
 
 ```conf
 [*] Utilizar LDAP
 [*] Utilizar Kerberos
 ```
 
-Clique em avançar
+Selecione avançar.
 
 ```conf
-ldap://cenvm01.jungle.kvm/
+ldap://kerberos_server.jungle.kvm/
 DN base: dc=jungle,dc=kvm
 ```
 
-Clique em avançar
+Selecione avançar.
 
 ```conf
 [*] Utilizar DNS para resolver máquinas para reinos
 ```
 
-Clique em OK. E assim, o cliente foi configurado para usar o _LDAP_ e _Kerberos_ configurados anteriormente.
+Clique em OK. E assim, o cliente foi configurado para usar o LDAP e Kerberos configurados anteriormente.
 
-Verifique no arquivo **/etc/nsswitch.conf** que as configurações indicam o uso do _LDAP_ para autenticação.
+___
+**Ver se isso pode influenciar**
 
+[root@client_01 ~]# authconfig-tui
+
+getsebool:  SELinux is disabled
+___
+
+Para ter certeza que as configurações foram aplicadas, verifique no arquivo **/etc/nsswitch.conf** que as configurações indicam o uso do LDAP para autenticação.
+
+**Arquivo:** /etc/nsswitch.conf
 ```conf
-FILE: /etc/nsswitch.conf
-
 ...
 passwd:     files sss ldap
 shadow:     files sss ldap
 group:      files sss ldap
 ...
 ```
+Os usuários **user1** e **user2** para autenticação Kerberos foram criados apenas na máquina **kerberos_server**. Estes usuários também precisam ser criados nas máquinas cliente. Utilizando o comando **getent** os usuários salvos no LDAP podem ser facilmente criados na máquina atual.
 
-NAO FUNCIONOU
 ```shel
-# getent passwd demouser1
-# id demouser1
+# getent passwd user1
+# id user1
+-------------------
+uid=1001(user1) gid=1001(user1) grupos=1001(user1)
 
-# getent passwd demouser2
-# id demouser2
+# getent passwd user2
+# id user2
+-------------------
+uid=1002(user2) gid=1002(user2) grupos=1002(user2)
 ```
 
 
-> Faça as mesmas estapas para outros possíveis clientes que utilizaram os serviços configurados.
+> **Para Outros Clientes**
+>
+> Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos.
