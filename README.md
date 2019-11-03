@@ -29,7 +29,8 @@ O Arquivo **/etc/hostname** de cada máquina deve ter o nome localhost alterado 
 <br>
 <h2 id="2"><b>2. Instalação e Configuração do Kerberos</b></h2>
 
-<h3 id="2-1"><b>Máquina:</b> Kerberos_Server</h3>
+## **` Máquina Kerberos_Server `**
+<div id="2-1"><div>
 
 
 
@@ -132,7 +133,7 @@ Reinicie a máquina ou inicie os serviços manualmente.
 ```
 <br>
 
-**`Firewall Habilitado`**
+**` Firewall Habilitado `**
 
 Se o serviço firewalld estiver habilitado, adicione o Kerberos e reinicie o serviço.
 ```shell
@@ -147,50 +148,39 @@ success
 ---
 <br>
 
-Vamos criar os usuários que serão usados para se autenticarem através do Kerberos. Após executar o comando **kadmin.local** será aberto um prompt, forneça os comandos como é mostrado abaixo para adicionar os usuários. Antes adicioná-los, abaixo é listado qual a necessidade de cada comando. 
+Vamos criar os usuários que serão usados para se autenticarem através do Kerberos. Após executar o comando **kadmin.local** será aberto um prompt, forneça os comandos como é mostrado abaixo para adicionar os usuários.
 
-> **Comandos do kadmin.local**
-> - addprinc
->     - -randkey
-> - ktadd
->     - -k
-> - listprincs
-
-Criando os usuários admin os hosts no Kerberos:
 ```shell
 # kadmin.local 
 ---------------------
 kadmin.local:  addprinc root/admin
- Enter password for...
-
 kadmin.local:  addprinc -randkey host/client_01.jungle.kvm
- ... (output)
-
 kadmin.local:  addprinc user1
-... (Crie uma senha)
-
 kadmin.local:  addprinc user2
-... (Crie uma senha)
-
 kadmin.local: ktadd -k /tmp/client_01.keytab host/client_01.jungle.kvm
- ... (output)
-
 kadmin.local: listprincs
-K/M@JUNGLE.KVM
-host/client_01.jungle.kvm@JUNGLE.KVM
-kadmin/admin@JUNGLE.KVM
-kadmin/changepw@JUNGLE.KVM
-kadmin/localhost@JUNGLE.KVM
-kiprop/localhost@JUNGLE.KVM
-krbtgt/JUNGLE.KVM@JUNGLE.KVM
-root/admin@JUNGLE.KVM
-user1@JUNGLE.KVM
-user2@JUNGLE.KVM
-
+   K/M@JUNGLE.KVM
+   host/client_01.jungle.kvm@JUNGLE.KVM
+   kadmin/admin@JUNGLE.KVM
+   kadmin/changepw@JUNGLE.KVM
+   kadmin/localhost@JUNGLE.KVM
+   kiprop/localhost@JUNGLE.KVM
+   krbtgt/JUNGLE.KVM@JUNGLE.KVM
+   root/admin@JUNGLE.KVM
+   user1@JUNGLE.KVM
+   user2@JUNGLE.KVM
 kadmin.local: quit
 ```
 
-Até aqui o Kerberos já está configurado. Agora é preciso configurar o Kerberos nas máquinas clientes. O arquivo **krb5.conf** terá as mesmas configurações nas máquinas clientes, por isso ele pode ser copiado para elas. E os arquivos com extenção ***.keytab**, gerados para cada máquina no comando acima, deverá ser usado pelas máquinas cliente também. 
+**` Comandos do kadmin.local `**
+ - addprinc
+     - -randkey
+ - ktadd
+     - -k
+ - listprincs
+---
+
+Agora é preciso configurar o Kerberos nos hosts cliente. O arquivo **krb5.conf** terá as mesmas configurações nas máquinas cliente, por isso ele pode ser copiado para elas. Os arquivos com extenção **.keytab**, que será gerado para cada host adicionado no **kadmin.local**, deve ser usado pelas máquinas cliente também. 
 
 Executando o comando abaixo os arquivos necessários serão enviados para a máquina **cliente_01**.
 
@@ -199,9 +189,10 @@ Executando o comando abaixo os arquivos necessários serão enviados para a máq
 ```
 
 <br>
-<h3 id="2-2"><b>Máquina:</b> client_01</h3>
 
----
+## **` Máquina client_01 `**
+<div id="2-2"><div>
+
 
 Instale os pacotes necessários para que o cliente se comunique com o servidor do Kerberos.
 
@@ -232,16 +223,13 @@ slot KVNO Principal
 ktutil:  quit
 ```
 
-> **Para Outros Clientes**
->
-> Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos. Apenas altere para o hostname que será utilizado para cada máquina.
+Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos. Apenas altere para o hostname que será utilizado para cada novo host cliente.
 
 <br>
 <h2 id="3"><b>3. Instalação e Configuração do OpenLDAP</b></h2>
 
-<h3 id="3-1"><b>Máquina:</b> Kerberos_Server</h3>
-
----
+## **` Máquina Kerberos_Server `**
+<div id="3-1"><div>
 
 Instalar pacotes necessários.
 
@@ -309,7 +297,7 @@ Após configurar os três arquivos acima habilite e inicie o OpenLDAP.
 ```
 <br>
 
-**`Firewall Habilitado`**
+**` Firewall Habilitado `**
 
 Se o serviço firewalld estiver habilitado, adicione o LDAP e reinicie o serviço.
 ```shell
@@ -398,11 +386,10 @@ Adicione as estruturas criadas ao LDAP.
 # ldapadd -x -D cn=Manager,dc=jungle,dc=kvm -W -f /tmp/groups.ldif 
 # ldapadd -x -D cn=Manager,dc=jungle,dc=kvm -W -f /tmp/users.ldif 
 ```
-
 <br>
-<h3 id="3-2"><b>Máquina:</b> client_01</h3>
 
----
+## **` Máquina client_01 `**
+<div id="3-2"><div>
 
 Instalar os pacotes necessários.
 
@@ -463,16 +450,13 @@ uid=1002(user2) gid=1002(user2) grupos=1002(user2)
 ```
 
 
-> **Para Outros Clientes**
->
-> Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos.
+Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos.
 
 <br>
 <h2 id="4"><b>4. Instalação e Configuração do NFS</b></h2>
 
-<h3 id="4-1"><b>Máquina:</b> Kerberos_Server</h3>
-
----
+## **` Máquina Kerberos_Server `**
+<div id="4-1"><div>
 
 Instalar pacotes necessários.
 
@@ -505,7 +489,7 @@ Export list for kerberos_server.localdomain:
 ```
 <br>
 
-**`Firewall Habilitado`**
+**` Firewall Habilitado `**
 
 Se o serviço firewalld estiver habilitado, adicione o NFS e reinicie o serviço.
 ```shell
@@ -518,13 +502,11 @@ success
 success
 ```
 ---
+
 <br>
 
-## **Máquina: ` client_01 `**
-
-<h3 id="4-2"><b>Máquina:</b> client_01</h3>
-
----
+## **` Máquina client_01 `**
+<div id="4-2"><div>
 
 Instalar pacotes necessários.
 
@@ -559,11 +541,9 @@ O login deve ser feito diretamente na máquina cliente configurada, para fazer o
 
 <br>
 
-`Login em máquina cliente via SSH`
+**` Login em máquina cliente via SSH `**
 
-Para o login diretamente na máquina foi utilizado as configurações do PAM e assim permitir a autenticação via Kerberos. Mas para login em máquina cliente via SSH é preciso habilitar algumas configurações. 
-
-Configure **ssh_config** apenas nas duas opções mostradas abaixo.
+Para o login diretamente na máquina foi utilizado as configurações do PAM e assim permitir a autenticação via Kerberos. Mas para login em máquina cliente via SSH é preciso habilitar as opções nos arquivos mostrados abaixo. 
 
 **Arquivo:** /etc/ssh/ssh_config
 ```conf
@@ -572,7 +552,6 @@ GSSAPIAuthentication yes
 GSSAPIDelegateCredentials yes
 ...
 ```
-No arquivo **sshd_config** apenas a opção **GSSAPIAuthentication** precisa ser habilitada.
 
 **Arquivo:** /etc/ssh/sshd_config
 ```conf
