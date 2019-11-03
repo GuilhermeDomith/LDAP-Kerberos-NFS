@@ -1,11 +1,23 @@
 # LDAP + Kerberos + NFS
 Trabalho realizado para as disciplinas de Serviços e Segurança do curso de Tecnologia em Sistemas para Internet
 
-## Introdução
+   1. [Configurações Iniciais](#1)
+   2. [Instalação e Configuração do Kerberos](#2)
+      - [kerberos_server](#2-1)
+      - [client_01](#2-2)
+   3. [Instalação e Configuração do OpenLDAP](#3)
+      - [kerberos_server](#3-1)
+      - [client_01](#3-2)
+   4. [Instalação e Configuração do NFS](#4)
+      - [kerberos_server](#4-1)
+      - [client_01](#4-2)
 
-Primeiro, será utilizado hostnames para referenciar às máquinas servidor e cliente, e não os seus ip's utilizados. Sendo assim, **kerberos_server** e **client_01** seram os nomes utilizados. 
+<br>
+<h2 id="1"><b>1. Configurações Iniciais</b></h2>
 
-O Arquivo **/etc/hostname** de cada máquina deve ter o nome localhost alterado para o seu nome correspondente e o mais importante, no aqruivo **/etc/hosts** deve ser inserido as linhas que associam o ip de cada máquina ao seu respectivo nome. Como no exemplo usado abaixo:
+Será utilizado hostnames para referenciar às máquinas servidor e cliente, e não os seus ip's utilizados. Sendo assim, **kerberos_server** e **client_01** seram os nomes utilizados. 
+
+O Arquivo **/etc/hostname** de cada máquina deve ter o nome localhost alterado para o seu nome correspondente e, o mais importante, no aqruivo **/etc/hosts** deve ser inserido as linhas que associam o ip de cada máquina ao seu respectivo nome. Como no exemplo usado abaixo:
 
 **Arquivo:** /etc/hosts
 ```conf
@@ -14,11 +26,12 @@ O Arquivo **/etc/hostname** de cada máquina deve ter o nome localhost alterado 
 192.168.0.7     client_01.jungle.kvm            client_01
 ```
 
+<br>
+<h2 id="2"><b>2. Instalação e Configuração do Kerberos</b></h2>
 
-## Instalação e Configuração do Kerberos
+<h3 id="2-1"><b>Máquina:</b> Kerberos_Server</h3>
 
-### **Máquina**: Kerberos_Server
----
+
 
 Para instalar o *Kerberos* execute o comando:
 ```shell
@@ -117,18 +130,22 @@ Reinicie a máquina ou inicie os serviços manualmente.
 # systemctl start kadmin.service
 # systemctl start krb5kdc.service
 ```
+<br>
 
-É preciso adicionar o kerberos ao firewall do sistema. Você pode ver se ele está disponível para ser adicionado com o comando abaixo. É um comando opcional, ele apenas listará todos os serviços disponíveis, mas o kerberos deve ser listado para que o próximo comando seja executado com sucesso.
+**`Firewall Habilitado`**
 
-```shell
-# firewall-cmd --get-services | grep kerberos
-```
-**Não será preciso se _systemctl disable firewalld.service_
-foi executado?**
+Se o serviço firewalld estiver habilitado, adicione o Kerberos e reinicie o serviço.
 ```shell
 # firewall-cmd --permanent --add-service kerberos
+--------------------
+success
+
 # firewall-cmd --reload
+--------------------
+success
 ```
+---
+<br>
 
 Vamos criar os usuários que serão usados para se autenticarem através do Kerberos. Após executar o comando **kadmin.local** será aberto um prompt, forneça os comandos como é mostrado abaixo para adicionar os usuários. Antes adicioná-los, abaixo é listado qual a necessidade de cada comando. 
 
@@ -150,8 +167,10 @@ kadmin.local:  addprinc -randkey host/client_01.jungle.kvm
  ... (output)
 
 kadmin.local:  addprinc user1
+... (Crie uma senha)
 
 kadmin.local:  addprinc user2
+... (Crie uma senha)
 
 kadmin.local: ktadd -k /tmp/client_01.keytab host/client_01.jungle.kvm
  ... (output)
@@ -179,7 +198,9 @@ Executando o comando abaixo os arquivos necessários serão enviados para a máq
 # scp /etc/krb5.conf /tmp/client_01.keytab root@client_01:/tmp/
 ```
 
-### **Máquina**: client_01
+<br>
+<h3 id="2-2"><b>Máquina:</b> client_01</h3>
+
 ---
 
 Instale os pacotes necessários para que o cliente se comunique com o servidor do Kerberos.
@@ -215,9 +236,11 @@ ktutil:  quit
 >
 > Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos. Apenas altere para o hostname que será utilizado para cada máquina.
 
-## Instalação e configuração do OpenLDAP
+<br>
+<h2 id="3"><b>3. Instalação e Configuração do OpenLDAP</b></h2>
 
-### **Máquina**: kerberos_server
+<h3 id="3-1"><b>Máquina:</b> Kerberos_Server</h3>
+
 ---
 
 Instalar pacotes necessários.
@@ -284,20 +307,22 @@ Após configurar os três arquivos acima habilite e inicie o OpenLDAP.
 # systemctl enable slapd
 # systemctl start slapd
 ```
+<br>
 
-___
-**Ver se vai manter**
+**`Firewall Habilitado`**
 
-Da mesma forma que foi realizado com o *Kerberos*, verifique se o _OpenLDAP_ é listado como um serviço disponível no firewall **//Verificar//**
-```shell
-# firewall-cmd --get-services | grep ldap
-```
-Adicione o serviço ao firewall e reinicie-o **//Verificar//**. Ambos os comandos abaixo deverão retornar _success_ **//Verificar//**
+Se o serviço firewalld estiver habilitado, adicione o LDAP e reinicie o serviço.
 ```shell
 # firewall-cmd --permanent --add-service ldap
+--------------------
+success
+
 # firewall-cmd --reload
+--------------------
+success
 ```
-___
+---
+<br>
 
 Adicionar os arquivos ao LDAP.
 ```shell
@@ -373,7 +398,10 @@ Adicione as estruturas criadas ao LDAP.
 # ldapadd -x -D cn=Manager,dc=jungle,dc=kvm -W -f /tmp/groups.ldif 
 # ldapadd -x -D cn=Manager,dc=jungle,dc=kvm -W -f /tmp/users.ldif 
 ```
-### **Máquina**: client_01
+
+<br>
+<h3 id="3-2"><b>Máquina:</b> client_01</h3>
+
 ---
 
 Instalar os pacotes necessários.
@@ -410,14 +438,6 @@ Selecione avançar.
 
 Clique em OK. E assim, o cliente foi configurado para usar o LDAP e Kerberos configurados anteriormente.
 
-___
-**Ver se isso pode influenciar**
-
-[root@client_01 ~]# authconfig-tui
-
-getsebool:  SELinux is disabled
-___
-
 Para ter certeza que as configurações foram aplicadas, verifique no arquivo **/etc/nsswitch.conf** que as configurações indicam o uso do LDAP para autenticação.
 
 **Arquivo:** /etc/nsswitch.conf
@@ -447,9 +467,11 @@ uid=1002(user2) gid=1002(user2) grupos=1002(user2)
 >
 > Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos.
 
-## Instalação e configuração do NFS
+<br>
+<h2 id="4"><b>4. Instalação e Configuração do NFS</b></h2>
 
-### **Máquina**: kerberos_server
+<h3 id="4-1"><b>Máquina:</b> Kerberos_Server</h3>
+
 ---
 
 Instalar pacotes necessários.
@@ -481,12 +503,11 @@ Para listar os diretórios compartilhados pelo NFS execute:
 Export list for kerberos_server.localdomain:
 /home *
 ```
+<br>
 
-<div style="background-color:#F9F9F9; padding:10px 25px">
+**`Firewall Habilitado`**
 
-**Firewall Habilitado**
-
-Se o serviço de firewall estiver habilitado, adicione o NFS e reinicie o serviço.
+Se o serviço firewalld estiver habilitado, adicione o NFS e reinicie o serviço.
 ```shell
 # firewall-cmd --permanent --add-service nfs
 --------------------
@@ -496,10 +517,13 @@ success
 --------------------
 success
 ```
-</div>
+---
+<br>
 
+## **Máquina: ` client_01 `**
 
-### **Máquina**: client_01
+<h3 id="4-2"><b>Máquina:</b> client_01</h3>
+
 ---
 
 Instalar pacotes necessários.
@@ -516,6 +540,7 @@ Adicione a seguinte linha no final do arquivo **auto.master**.
 ```
 
 Agora vamos colocar o caminho local para onde o diretório compartilhado pelo **kerberos_server** será montado.
+
 **Arquivo:** /etc/auto.autofs
 ```conf
 *     kerberos_server:/home/&
@@ -532,9 +557,9 @@ Pronto, o login com os usuários e hosts cadastrados no Kerberos poderão ser re
 
 O login deve ser feito diretamente na máquina cliente configurada, para fazer o acesso via SSH deve ser realizado as configurações abaixo.
 
-<div style="background-color:#F9F9F9; padding:10px 25px">
+<br>
 
-**Login em máquina cliente via SSH**
+`Login em máquina cliente via SSH`
 
 Para o login diretamente na máquina foi utilizado as configurações do PAM e assim permitir a autenticação via Kerberos. Mas para login em máquina cliente via SSH é preciso habilitar algumas configurações. 
 
@@ -561,15 +586,19 @@ Reinicie o serviço de SSH.
 ```shell
 # systemctl reload sshd
 ```
-</div>
-
+---
+<br>
 
 Após logar em **client_01** , com o user1 ou user2, observe que o diretório **home do usuário** está localizado na máquina **kerberos_server**. Verifique executando o comando:
 
 ```shell
 # mount | grep /home/user
 ----------------
-kerberos_server:/home/user1 on /home/user1 type nfs4 (rw,relatime,vers=4.1,rsize=262144,wsize=262144,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=192.168.0.7,local_lock=none,addr=192.168.0.28)
+kerberos_server:/home/user1 on /home/user1 type nfs4 (rw,
+relatime,vers=4.1,rsize=262144,wsize=262144,namlen=255,hard,
+proto=tcp,port=0,timeo=600,retrans=2,sec=sys,
+clientaddr=192.168.0.7,local_lock=none,addr=192.168.0.28)
+
 ```
 
 Você pode listar os **tickets** fornecidos pelo kerberos ao logar nesta máquina com alguns dos usuários cadastrados. 
