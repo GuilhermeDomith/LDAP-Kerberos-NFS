@@ -149,6 +149,10 @@ kadmin.local:  addprinc root/admin
 kadmin.local:  addprinc -randkey host/client_01.jungle.kvm
  ... (output)
 
+kadmin.local:  addprinc user1
+
+kadmin.local:  addprinc user2
+
 kadmin.local: ktadd -k /tmp/client_01.keytab host/client_01.jungle.kvm
  ... (output)
 
@@ -161,6 +165,8 @@ kadmin/localhost@JUNGLE.KVM
 kiprop/localhost@JUNGLE.KVM
 krbtgt/JUNGLE.KVM@JUNGLE.KVM
 root/admin@JUNGLE.KVM
+user1@JUNGLE.KVM
+user2@JUNGLE.KVM
 
 kadmin.local: quit
 ```
@@ -440,3 +446,140 @@ uid=1002(user2) gid=1002(user2) grupos=1002(user2)
 > **Para Outros Clientes**
 >
 > Faça as mesmas estapas acima para outros possíveis clientes que utilizarão o Kerberos.
+
+## Instalação e configuração do NFS
+
+### **Máquina**: kerberos_server
+---
+
+Instalar pacotes necessários.
+
+```shell
+# yum install nfs-utils
+```
+
+É preciso criar o arquivo **exports** para que seja inserido os diretórios que serão compartilhados pelo NFS. Abaixo será compartilhado o diretório **/home** com permissão de leitura e escrita.
+
+**Arquivo:** /etc/exports
+```conf
+/home    *(rw,sync)
+```
+Habilite o NFS na inicialização do sistema e inicie o serviço manualmente.
+
+```shell
+# systemctl enable rpcbind
+# systemctl enable nfs-server
+
+# systemctl start rpcbind
+# systemctl start nfs-server
+```
+
+Para listar os diretórios compartilhados pelo NFS execute:
+```shell
+# showmount -e
+-----------------
+Export list for kerberos_server.localdomain:
+/home *
+```
+
+<div style="background-color:#F9F9F9; padding:10px 25px">
+
+**Firewall Habilitado**
+
+Se o serviço de firewall estiver habilitado, adicione o NFS e reinicie o serviço.
+```shell
+# firewall-cmd --permanent --add-service nfs
+--------------------
+success
+
+# firewall-cmd --reload
+--------------------
+success
+```
+</div>
+
+
+### **Máquina**: client_01
+---
+
+Instalar pacotes necessários.
+
+```shell
+# yum install nfs-utils autofs
+```
+Adicione a seguinte linha no final do arquivo **auto.master**.
+
+**Arquivo:** /etc/auto.master
+```conf
+...
+/home /etc/auto.autofs --timeout=600
+```
+
+Agora vamos colocar o caminho local para onde o diretório compartilhado pelo **kerberos_server** será montado.
+**Arquivo:** /etc/auto.autofs
+```conf
+*     kerberos_server:/home/&
+```
+
+Habilite o NFS na inicialização do sistema e inicie o serviço manualmente.
+
+```shell
+# systemctl enable autofs
+# systemctl start autofs
+```
+
+Pronto, o login com os usuários e hosts cadastrados no Kerberos poderão ser realizados a partir de agora. Faça logout e se logue com um dos usuários cadastrados no LDAP e Kerberos. 
+
+O login deve ser feito diretamente na máquina cliente configurada, para fazer o acesso via SSH deve ser realizado as configurações abaixo.
+
+<div style="background-color:#F9F9F9; padding:10px 25px">
+
+**Login em máquina cliente via SSH**
+
+Para o login diretamente na máquina foi utilizado as configurações do PAM e assim permitir a autenticação via Kerberos. Mas para login em máquina cliente via SSH é preciso habilitar algumas configurações. 
+
+Configure **ssh_config** apenas nas duas opções mostradas abaixo.
+
+**Arquivo:** /etc/ssh/ssh_config
+```conf
+...
+GSSAPIAuthentication yes
+GSSAPIDelegateCredentials yes
+...
+```
+No arquivo **sshd_config** apenas a opção **GSSAPIAuthentication** precisa ser habilitada.
+
+**Arquivo:** /etc/ssh/sshd_config
+```conf
+...
+GSSAPIAuthentication yes
+...
+```
+
+Reinicie o serviço de SSH.
+
+```shell
+# systemctl reload sshd
+```
+</div>
+
+
+Após logar em **client_01** , com o user1 ou user2, observe que o diretório **home do usuário** está localizado na máquina **kerberos_server**. Verifique executando o comando:
+
+```shell
+# mount | grep /home/user
+----------------
+kerberos_server:/home/user1 on /home/user1 type nfs4 (rw,relatime,vers=4.1,rsize=262144,wsize=262144,namlen=255,hard,proto=tcp,port=0,timeo=600,retrans=2,sec=sys,clientaddr=192.168.0.7,local_lock=none,addr=192.168.0.28)
+```
+
+Você pode listar os **tickets** fornecidos pelo kerberos ao logar nesta máquina com alguns dos usuários cadastrados. 
+
+```shell
+# klist
+```
+
+O **ticket** permite a quem possuí-lo logar em outras máquinas cliente configuradas sem que a senha seja solicitada, até a data de expiração do mesmo. 
+
+Para testar o login sem autenticação, recurso oferecido pelo Kerberos, configure uma segunda máquina cliente da mesma forma que foi realizado em **client_01**. E na máquina **kerberos_server** use o console do **kdmin.local** para adicionar este novo **host** clinente que será configurado.
+
+
