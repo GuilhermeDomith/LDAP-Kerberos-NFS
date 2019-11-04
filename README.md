@@ -148,15 +148,17 @@ success
 ---
 <br>
 
-Vamos criar os usuários que serão usados para se autenticarem através do Kerberos. Após executar o comando **kadmin.local** será aberto um prompt, forneça os comandos como é mostrado abaixo para adicionar os usuários.
+<div id="kadmin-local"></div>
+
+Vamos criar os usuários e hosts que serão usados para se autenticarem através do Kerberos. Após executar o comando **kadmin.local** será aberto um prompt, forneça os comandos como é mostrado abaixo para adicionar os usuários. Quando adicionado usuários será solicitado a criação de uma senha.
 
 ```shell
 # kadmin.local 
 ---------------------
-kadmin.local:  addprinc root/admin
-kadmin.local:  addprinc -randkey host/client_01.jungle.kvm
-kadmin.local:  addprinc user1
-kadmin.local:  addprinc user2
+kadmin.local: addprinc root/admin
+kadmin.local: addprinc user1
+kadmin.local: addprinc user2
+kadmin.local: addprinc -randkey host/client_01.jungle.kvm
 kadmin.local: ktadd -k /tmp/client_01.keytab host/client_01.jungle.kvm
 kadmin.local: listprincs
    K/M@JUNGLE.KVM
@@ -175,18 +177,14 @@ kadmin.local: quit
 **` Comandos do kadmin.local `**
  - addprinc
      - -randkey
- - ktadd
+ - ktadd - Gera o arquivo .keytab do host cadastrado.
      - -k
  - listprincs
 ---
 
-Agora é preciso configurar o Kerberos nos hosts cliente. O arquivo **krb5.conf** terá as mesmas configurações nas máquinas cliente, por isso ele pode ser copiado para elas. Os arquivos com extenção **.keytab**, que será gerado para cada host adicionado no **kadmin.local**, deve ser usado pelas máquinas cliente também. 
+Agora é preciso configurar o Kerberos nos hosts cliente. O arquivo **krb5.conf** terá as mesmas configurações nas máquinas cliente, por isso ele será copiado a partir delas. 
 
-Executando o comando abaixo os arquivos necessários serão enviados para a máquina **cliente_01**.
-
-```shell
-# scp /etc/krb5.conf /tmp/client_01.keytab root@client_01:/tmp/
-```
+Os arquivos com extenção **.keytab**, que será gerado para cada host adicionado no **kadmin.local**, será usado pelas máquinas cliente também. No exemplo acima ele foi gerado no diretório **/tmp**. 
 
 <br>
 
@@ -200,10 +198,11 @@ Instale os pacotes necessários para que o cliente se comunique com o servidor d
 # yum install pam_krb5 krb5-workstation
 ```
 
-Copie o arquivo **krb5.conf** obtido da máquina **kerberos_server** e subistitua o arquivo já existente:
+Copie o arquivo **krb5.conf** da máquina **kerberos_server** e subistitua o arquivo já existente. O arquivo **client_01.keytab** deve ser copiado para a qualquer local da máquina atual, ele será usado posteriormente.
 
 ```shell
-# cp /tmp/krb5.conf /etc/
+# scp root@kerberos_server:/etc/krb5.conf /etc/
+# scp root@kerberos_server:/tmp/client_01.keytab /tmp/
 ```
 
 Agora é preciso utilizar o console do **ktutil** para adicionar a chave também obtida do **kerberos_server**.
@@ -353,13 +352,6 @@ Insira a estrutura raiz ao LDAP e faça uma busca para confirmar a inserção. C
 # ldapsearch -x -D cn=Manager,dc=jungle,dc=kvm -W -b dc=jungle,dc=kvm
 ```
 
-Crie os usuários que serão usados para se autenticar no NFS. Como o Kerberos se encarregará da autenticação, não serão criados senhas para estes usuários.
-
-```shell
-# useradd user1
-# useradd user2
-```
-
 No arquivo **migrate_common.ph** altere o valor da variável **DEFAULT_MAIL_DOMAIN** para   **"jungle.kvm"**, **DEFAULT_BASE** para **"dc=jungle,dc=kvm"** e **EXTENDED_SCHEMA** para o valor **1**. Abaixo o resultado das configurações somente nas três variáveis modificadas:
 
 **Arquivo:** /usr/share/migrationtools/migrate_common.ph
@@ -369,8 +361,16 @@ $DEFAULT_BASE = "dc=jungle,dc=kvm";
 ...
 $EXTENDED_SCHEMA = 1;
 ```
+<div id="criar-usuario"></div>
 
-Vamos utilizar o **migrate_passwd** e **migrate_group** para converter as informações dos usuários criados acima, e grupos criados automanticamente, na mesma estrutura do LDAP.
+Crie os usuários que serão usados para se usar o NFS. Como o Kerberos se encarregará da autenticação, não serão criados senhas para estes usuários.
+
+```shell
+# useradd user1
+# useradd user2
+```
+
+Vamos utilizar o **migrate_passwd** e **migrate_group** para converter as informações dos usuários e grupos criados acima na mesma estrutura do LDAP.
 
 ```shell
 # egrep  user[0-9] /etc/passwd > /tmp/users
@@ -435,18 +435,15 @@ shadow:     files sss ldap
 group:      files sss ldap
 ...
 ```
-Os usuários **user1** e **user2** para autenticação Kerberos foram criados apenas na máquina **kerberos_server**. Estes usuários também precisam ser criados nas máquinas cliente. Utilizando o comando **getent** os usuários salvos no LDAP podem ser facilmente criados na máquina atual.
+Os usuários **user1** e **user2**, para se autenticar no Kerberos, foram criados apenas na máquina **kerberos_server**. Ao configurar os serviços acima no PAM os usuários já podem ser listados localmente, utilizando os comando **getent** ou **id**. Mas repare, abrindo o arquivo **/etc/passwd** os usuários não serão listados, apenas pelos comandos acima citados. 
 
-```shel
+```shell
 # getent passwd user1
+-------------------
+user1:x:1001:1001:user1:/home/user1:/bin/bash
 # id user1
 -------------------
 uid=1001(user1) gid=1001(user1) grupos=1001(user1)
-
-# getent passwd user2
-# id user2
--------------------
-uid=1002(user2) gid=1002(user2) grupos=1002(user2)
 ```
 
 
@@ -537,7 +534,7 @@ Habilite o NFS na inicialização do sistema e inicie o serviço manualmente.
 
 Pronto, o login com os usuários e hosts cadastrados no Kerberos poderão ser realizados a partir de agora. Faça logout e se logue com um dos usuários cadastrados no LDAP e Kerberos. 
 
-O login deve ser feito diretamente na máquina cliente configurada, para fazer o acesso via SSH deve ser realizado as configurações abaixo.
+O login deve ser feito diretamente na máquina cliente configurada, para fazer o acesso via SSH nesta máquina deve ser realizado as configurações abaixo.
 
 <br>
 
@@ -590,4 +587,11 @@ O **ticket** permite a quem possuí-lo logar em outras máquinas cliente configu
 
 Para testar o login sem autenticação, recurso oferecido pelo Kerberos, configure uma segunda máquina cliente da mesma forma que foi realizado em **client_01**. E na máquina **kerberos_server** use o console do **kdmin.local** para adicionar este novo **host** clinente que será configurado.
 
+
+<br>
+<h2 id="5"><b>5. Adicionando Novos Hosts e Usuários</b></h2>
+
+Para adicionar novos hosts é preciso fazer as [configurações inicias](#1) na nova máquina cliente, adicionar o host ao [kadmin.local](#kadmin-local) e gerar o arquivo **.keytab** e depois realizar os mesmos passos realizados no **client_01** nas etapas [2](#2-2), [3](#3-2) e [4](#4-2).  
+
+Para adicionar novos usuários é preciso adiciona-los ao [kadmin.local](#kadmin-local) e depois [cadastra-los ao LDAP](#criar-usuario). As máquinas clientes estando configuradas para usar o LDAP e Kerberos os novos usuários já poderão ser usados para se autenticarem e acessarem os seus diretórios compartilhados pelo NFS.
 
