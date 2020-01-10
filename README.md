@@ -1,7 +1,3 @@
----
-description: Guilherme Domith Ribeiro Coelho
----
-
 # Kerberos + LDAP + NFS
 
 Instituto Federal do Sudeste de Minas Gerais - Campus Barbacena  
@@ -9,7 +5,22 @@ Curso: Tecnologia em Sistemas  para Internet
 Disciplina: Gerência e Configuração de Serviços Internet  
 Prof. Herlon Ayres Camargo
 
-## 1. Introdução
+1. [Introdução](#1)
+2. [Configurações Iniciais](#2)
+3. [Servidor LDAP](#3)
+4. [Servidor Kerberos](#4)
+    - [Adicionar Base de Dados LDAP](#4-1)
+    - [Configurar Kerberos Server](#4-2)
+    - [Cadastrar Usuários no Kerberos](#4-3)
+    - [Cadastrar Hosts no Kerberos](#4-4)
+    - [Configurar NFS Server](#4-5)
+5. [Host Com NFS e Autenticação Via Kerberos](#5)
+    - [Configurar Kerberos Workstation](#5-1)
+    - [Configurar PAM](#5-2)
+    - [Configurar NFS](#5-3)
+6. [Referências](#6)
+
+<h2 id="1">1. Introdução</h2>
 
 Este relatório tem o objetivo de apresentar as configurações em servidores linux para o funcionamento do Kerberos integrado a uma base de dados LDAP.  Será realizada também a configuração de um host para autenticação no servidor Kerberos e uso de diretório compartilhado utilizando NFS, diretório que estará localizado no mesmo servidor. Em todas as máquinas configuradas foi utilizado o sistema operacional CentOS 7. 
 
@@ -21,11 +32,12 @@ A partir disto, será utilizado os ramos Usuários e Máquinas, onde cada ramo p
 
 ![Identifica&#xE7;&#xE3;o de cada objeto da base LDAP do Laborat&#xF3;rio de Redes.](.gitbook/assets/image%20%283%29.png)
 
-## **2. Configurações Iniciais**
+<br/>
+<h2 id="2">2. Configurações Iniciais</h2>
 
 Será utilizado hostnames para referenciar aos servidores LDAP e Kerberos e aos hosts que utilizarão as aplicações. Sendo assim, os seguintes nomes serão utilizados.
 
-{% code title="/etc/hosts" %}
+**Arquivo:** /etc/hosts
 ```bash
 
 200.131.10.180      ldap.labredes.info            ldap
@@ -33,11 +45,12 @@ Será utilizado hostnames para referenciar aos servidores LDAP e Kerberos e aos 
 10.3.2.3            b5m1.labredes.info            b5m1
 10.3.2.4            b6m4.labredes.info            b6m4
 ```
-{% endcode %}
+
 
 Em todas as máquinas foi utilizado as configurações acima inseridas no arquivo **/etc/hosts**.
 
-## 3. Servidor LDAP
+<br/>
+<h2 id="3"> 3. Servidor LDAP </h2>
 
 É preciso instalar o pacote **krb5-server-ldap** na máquina em que se encontra o LDAP apenas para obter o schema do Kerberos.
 
@@ -59,7 +72,7 @@ $ mkdir -p /ldifs
 
 Após criado o diretório, crie um arquivo chamado **schema\_convert.conf** que manterá todos os schemas utilizados pelo LDAP.  
 
-{% code title="/ldifs/schema\_convert.conf" %}
+**Arquivo:** /ldifs/schema\_convert.conf
 ```bash
 include /etc/openldap/schema/core.schema
 include /etc/openldap/schema/collective.schema
@@ -75,7 +88,7 @@ include /etc/openldap/schema/openldap.schema
 include /etc/openldap/schema/ppolicy.schema
 include /etc/openldap/schema/kerberos.schema
 ```
-{% endcode %}
+
 
 Após criado o arquivo **schema\_convert.conf** acima utilize o comando abaixo para gerar o ldif do schema Kerberos.
 
@@ -85,7 +98,7 @@ $ slapcat -f /ldifs/schema_convert.conf -F /ldifs/ -n0 -s "cn=kerberos,cn=schema
 
 É preciso excluir algumas linhas do arquivo que foi gerado acima. Remova as linhas do arquivo que são mostradas na exemplo abaixo.
 
-{% code title="/ldifs/kerberos.ldif" %}
+**Arquivo:** /ldifs/kerberos.ldif
 ```bash
 # Linhas que devem ser removidas
 structuralObjectClass: olcSchemaConfig
@@ -96,11 +109,11 @@ entryCSN: 20191124024949.223922Z#000000#000#000000
 modifiersName: cn=config
 modifyTimestamp: 20191124024949Z
 ```
-{% endcode %}
+
 
 Após a remoção o arquivo deverá ficar como no exemplo simplificado abaixo.
 
-{% code title="/ldifs/kerberos.ldif" %}
+**Arquivo:** /ldifs/kerberos.ldif
 ```bash
 dn: cn=kerberos,cn=schema,cn=config
 objectClass: olcSchemaConfig
@@ -111,7 +124,7 @@ cn: kerberos
 olcObjectClasses: {11}( 2.16.840.1.113719.1.301.6.17.1 
  NAME 'krbTicketPolicy' SUP top STRUCTURAL MUST cn )
 ```
-{% endcode %}
+
 
 Após criado o arquivo **kerberos.ldif** _****_o mesmo poderá ser adicionado ao LDAP. Utilize o comando abaixo para adicionar o novo schema com o servidor LDAP em funcionamento.
 
@@ -121,7 +134,7 @@ $ ldapadd -Y EXTERNAL -H ldapi:/// -f /ldifs/kerberos.ldif
 
 Por motivos de segurança é recomendado inserir nova regra de acesso para os atributos utilizados pelo Kerberos. Desta forma, apenas o administrador da base consegue alterá-los. Será criado o arquivo abaixo para fazer as modificações nas configurações do LDAP.
 
-{% code title="/ldifs/hdb\_ajuste.ldif" %}
+**Arquivo:** /ldifs/hdb\_ajuste.ldif
 ```bash
 dn: olcDatabase={2}hdb,cn=config
 changetype: modify
@@ -135,7 +148,7 @@ olcAccess: to attrs=userPassword,shadowLastChange,krbPrincipalKey
  by * none
 
 ```
-{% endcode %}
+
 
 Aplicando as novas configurações de regra de acesso na base de dados.
 
@@ -145,7 +158,10 @@ $ ldapmodify -Y EXTERNAL -H ldapi:/// -f /ldifs/hdb_ajuste.ldif
 
 Estas são as mínimas modificações necessárias no LDAP para integrá-lo como base de dados para o Kerberos. Como pode ser visto acima, não será utilizado nenhuma co
 
-## 4. Servidor Kerberos
+<br/>
+<h2 id="4">4. Servidor Kerberos<h2>
+
+<div id="4-1"></div>
 
 ### 4.1 Adicionar Base de Dados LDAP
 
@@ -157,7 +173,7 @@ $ yum install nss-pam-ldapd openldap-clients
 
 Altere o arquivo **/etc/nsswitch.conf** para que as usuários, senhas e grupos sejam consultados também a partir da base LDAP e não apenas localmente.
 
-{% code title="/etc/nsswitch.conf" %}
+**Arquivo:** /etc/nsswitch.conf
 ```bash
 passwd:     files sss ldap
 shadow:     files sss ldap
@@ -167,7 +183,7 @@ netgroup:   files sss ldap
 ...
 automount:  files ldap
 ```
-{% endcode %}
+
 
 ```bash
 $ systemctl start nscd
@@ -176,7 +192,7 @@ $ systemctl enable nscd
 
 Acrescente no arquivo **/etc/nslcd.conf**  _****_as informações necessárias para consulta na base LDAP. Informe o endereço do servidor, o ramo da base onde estão os usuários e grupos, o usuário que tem a permissão de consultar a base e a sua senha. 
 
-{% code title="/etc/nslcd.conf" %}
+**Arquivo:** /etc/nslcd.conf
 ```bash
 uid nslcd
 gid ldap
@@ -195,7 +211,7 @@ bindpw domith
 ssl no
 tls_cacertdir /etc/openldap/cacerts
 ```
-{% endcode %}
+
 
 ```bash
 $ systemctl start nslcd
@@ -213,6 +229,8 @@ $ getent group rafael
 
 Estas configurações realizadas também precisarão ser feitas em cada host que que for utilizar a autenticação com o Kerberos e o compartilhamento de diretórios NFS.
 
+<div id="4-2"></div>
+
 ### 4.2 Configurar Kerberos Server
 
 ```bash
@@ -222,7 +240,7 @@ $ yum install openldap-clients
 
 É preciso configurar o servidor KDC  e Kadmin do Kerberos, ambos estarão na mesma máquina, **kerberos.labredes.info**. E também, é necessário inserir alguns atributos que configuram o serviço para utilizar a base de dados na máquina  **ldap.labredes.info**. O nome do reino a ser utilizado será **LABREDES.INFO.**
 
-{% code title="/etc/krb5.conf" %}
+**Arquivo:** /etc/krb5.conf
 ```bash
 includedir /etc/krb5.conf.d/
 
@@ -274,11 +292,11 @@ includedir /etc/krb5.conf.d/
  }
 
 ```
-{% endcode %}
+
 
 O novo reino configurado acima, **LABREDES.INFO**, é referenciado em mais dois arquivos do Kerberos. Neles serão alterados apenas o nome do reino. A configuração dos dois arquivos se encontram abaixo.
 
-{% code title="/var/kerberos/krb5kdc/kdc.conf" %}
+**Arquivo:** /var/kerberos/krb5kdc/kdc.conf
 ```bash
 kdc_ports = 88
 kdc_tcp_ports = 88
@@ -293,15 +311,15 @@ kdc_tcp_ports = 88
 }
 
 ```
-{% endcode %}
 
-{% code title="/var/kerberos/krb5kdc/kadm5.acl" %}
+
+**Arquivo:** /var/kerberos/krb5kdc/kadm5.acl
 ```bash
 */admin@LABREDES.INFO	    *
 ```
-{% endcode %}
 
-O ****ramo onde será armazenado as dependências do Kerberos, configurado em **krb5.conf,** no atributo **ldap\_kerberos\_container\_dn**, precisa ser criado manualmente na base LDAP. Os usuários que irão se autenticar com o Kerberos serão armazenados neste ramo por padrão.
+
+O ramo onde será armazenado as dependências do Kerberos, configurado em **krb5.conf,** no atributo **ldap\_kerberos\_container\_dn**, precisa ser criado manualmente na base LDAP. Os usuários que irão se autenticar com o Kerberos serão armazenados neste ramo por padrão.
 
 Neste relatório serão utilizados usuários e hosts que estarão previamente armazenados na base LDAP, por isso eles estarão salvos em outro ramo, e não em **krbContainer**. No momento em que for criado novos usuários e hosts no Kerberos será mostrado como referenciá-los em outro ramo. Mas antes, é preciso cria o **krbContainer** no ramo "dc=domith,dc=labredes,dc=info".
 
@@ -324,6 +342,7 @@ $ systemctl start krb5kdc.service
 $ systemctl enable kadmin.service
 $ systemctl enable krb5kdc.service
 ```
+<div id="4-3"></div>
 
 ### 4.3 Cadastrar Usuários no Kerberos
 
@@ -367,6 +386,8 @@ $ kadmin.local
     kadmin.local:  quit
     
 ```
+
+<div id="4-4"></div>
 
 ### 4.4 Cadastrar Hosts no Kerberos
 
@@ -453,6 +474,8 @@ $ ktutil
    
 ```
 
+<div id="4-5"></div>
+
 ### 4.5 Configurar NFS Server
 
 ```bash
@@ -461,11 +484,11 @@ $ yum install nfs-utils
 
 Crie o arquivo **/etc/exports** que será utilizado para configurar os diretórios que serão compartilhado pelo NFS.
 
-{% code title="/etc/exports" %}
+**Arquivo:** /etc/exports
 ```bash
 /home    *(rw,sync,no_subtree_check,sec=krb5)
 ```
-{% endcode %}
+
 
 Inicie o serviços para o funcionamento do NFS.
 
@@ -499,9 +522,12 @@ $ chown -R marlon:marlon /home/marlon
 $ chmod 700 /home/marlon
 ```
 
-## 5. Host Com NFS e Autenticação Via Kerberos 
+<br/>
+<h2 id="5"> 5. Host Com NFS e Autenticação Via Kerberos </h2> 
 
 Neste momento deve ser acessado o host que permitirá ao usuário se autenticar através no Kerberos e após isso acessar o seu diretório pessoal através do NFS. Será utilizado a máquina endereçada como **b5m1.labredes.info** para demonstrar as configurações que precisam ser realizadas.
+
+<div id="5-1"></div>
 
 ### 5.1 Configurar Kerberos Workstation
 
@@ -535,6 +561,8 @@ $ ktutil
    
 ```
 
+<div id="5-2"></div>
+
 ### 5.2 Configurar PAM
 
 ```bash
@@ -553,9 +581,9 @@ Utilize o comando abaixo para habilitar o Kerberos como método de autenticaçã
 $ authconfig --updateall --enablekrb5
 ```
 
-{% hint style="info" %}
-É preciso adicionar a base de dados LDAP como fonte de usuários e grupos. Utilize as mesmas configurações realizadas no tópico [**4.1 Adicionar Base de Dados LDAP**](https://app.gitbook.com/@guilhermedomith/s/kerberos-ldap-nfs/~/drafts/-LvDe-npE5uTGWO7pQwX/#4-1-adicionar-base-de-dados-ldap). Caso não seja feito, não será possível logar com os usuários no host.
-{% endhint %}
+**Atenção:** É preciso adicionar a base de dados LDAP como fonte de usuários e grupos. Utilize as mesmas configurações realizadas no tópico [**4.1 Adicionar Base de Dados LDAP**](#4-1). Caso não seja feito, não será possível logar com os usuários no host.
+
+<div id="5-3"></div>
 
 ### 5.3 Configurar NFS
 
@@ -565,7 +593,7 @@ $ yum install nfs-utils autofs
 
 Altere o configuração no arquivo **/etc/auto.master** para informar o local onde será montado os diretórios compartilhados pelo servidor.
 
-{% code title="/etc/auto.master" %}
+**Arquivo:** /etc/auto.master
 ```bash
 # Configurações padrão
 /misc   /etc/auto.misc
@@ -576,15 +604,15 @@ Altere o configuração no arquivo **/etc/auto.master** para informar o local on
 # Acrescente esta configuração
 /home /etc/auto.autofs --timeout=600
 ```
-{% endcode %}
+
 
 O arquivo referenciado nas configurações acima precisa ser criado. Crie e acrescente as configurações como no exemplo abaixo, onde informa que será montado o diretório home do usuário logado.
 
-{% code title="/etc/auto.autofs" %}
+**Arquivo:** /etc/auto.autofs
 ```bash
 *    -fstype=nfs4,sec=krb5   kerberos.labredes.info:/home/&
 ```
-{% endcode %}
+
 
 ```bash
 $ systemctl start autofs
@@ -615,7 +643,8 @@ $ klist
     25-11-2019 00:02:22  26-11-2019 00:02:22  krbtgt/LABREDES.INFO@LABREDES.INFO
 ```
 
-## 6. Referências
+<br/>
+<h2 id="6">6. Referências</h2>
 
 **Kerberos, OpenLDAP and NFS**. 2018. Disponível em: &lt;[https://www.youtube.com/playlist?list=PL34sAs7\_26wPWa0O244eBv0tcg1MSJMp4](https://www.youtube.com/playlist?list=PL34sAs7_26wPWa0O244eBv0tcg1MSJMp4)&gt;.
 
