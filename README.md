@@ -424,6 +424,7 @@ $ kadmin.local
     marlon@LABREDES.INFO
     rafael@LABREDES.INFO
     nfs/b5m1.labredes.info@LABREDES.INFO
+    nfs/kerberos.labredes.info@LABREDES.INFO
     K/M@LABREDES.INFO
     krbtgt/LABREDES.INFO@LABREDES.INFO
     ...
